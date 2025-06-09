@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chat UI with Upload</title>
+
+  <script>
+    // 👇 Login redirect should happen before any HTML renders
+    if (localStorage.getItem("isLoggedIn") !== "true") {
+      window.location.href = "login.html";
+    }
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <style>
+    :root {
+      --bg-color: #1e1e1e;
+      --text-color: white;
+      --container-bg: rgba(40, 40, 40, 0.7);
+      --message-user-bg: #4a90e2;
+      --message-bot-bg: #2f2f2f;
+      --input-bg: rgba(50, 50, 50, 0.8);
+      --border-color: #444;
+      --indicator-color: #aaa;
+    }
+
+    body.light-theme {
+  --bg-color: #f5f5f5;
+  --text-color: #111;
+  --container-bg: rgba(255, 255, 255, 0.9);
+  --message-user-bg: #007aff;
+  --message-bot-bg: #e0e0e0;
+  --input-bg: rgba(240, 240, 240, 0.8);
+  --border-color: #ccc;
+  --indicator-color: #555;
+
+  /* 🔧 Fix segmented control for light mode */
+  --segmented-label-color: #555;
+  --segmented-slider-bg: #333;
+}
+
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-color);
+      font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      padding: 4px;
+      cursor: pointer;
+      color: var(--text-color);
+      z-index: 1000;
+    }
+
+    .toggle-switches {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 1000;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* ensures consistent spacing between toggle and icon */
+  width: 140px; /* ensures both switches occupy same horizontal space */
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  color: white;
+}
+
+.switch-icon {
+  height: 20px;
+  width: 20px;
+  object-fit: contain;
+  filter: brightness(1.1);
+}
+
+.mysql-icon {
+  height: 32px;
+  width: auto;
+  transform: translateY(1px); /* slight vertical alignment fix */
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider-round {
+  position: relative;
+  width: 46px;
+  height: 24px;
+  background-color: #ccc;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.slider-round::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.3s;
+}
+
+input:checked + .slider-round {
+  background-color: #4caf50;
+}
+
+input:checked + .slider-round::before {
+  transform: translateX(22px);
+}
+
+.switch-label {
+  user-select: none;
+}
+
+    .theme-toggle svg {
+      transition: transform 0.3s ease, color 0.3s ease;
+    }
+
+    .theme-toggle:hover svg {
+      transform: rotate(20deg);
+    }
+
+    .hamburger {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 28px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -260px;
+      width: 240px;
+      height: 100%;
+      background-color: var(--container-bg);
+      padding: 30px 20px 20px 20px;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.4);
+      transition: left 0.3s ease;
+      z-index: 999;
+      overflow-y: auto;
+    }
+
+    .sidebar.open {
+      left: 0;
+    }
+
+    .sidebar h3 {
+  color: var(--text-color);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 60px 0 16px 0; /* Push it down */
+}
+
+
+    .sidebar .chat-tab {
+      padding: 10px 12px;
+      margin: 6px 0;
+      background: var(--input-bg);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.3s ease;
+    }
+
+    .sidebar .chat-tab:hover {
+      background: var(--message-user-bg);
+      color: white;
+    }
+
+    .chat-tab-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--input-bg);
+  border-radius: 8px;
+  margin: 6px 0;
+  padding: 6px 10px;
+}
+
+.chat-delete-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 18px;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.chat-delete-btn:hover {
+  color: red;
+}
+
+    .center-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      max-width: 800px;
+      width: 100%;
+      text-align: center;
+      padding: 0 20px;
+    }
+
+    .greeting {
+      font-size: 2.8rem;
+      font-weight: 600;
+      background: linear-gradient(-45deg, #6a5acd, #e66465, #8a2be2, #e66465);
+      background-size: 400% 400%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientMove 5s ease infinite;
+      margin-bottom: 14px;
+    }
+
+    .segmented-control {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 260px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid white;
+      border-radius: 999px;
+      padding: 6px;
+      margin: 20px auto 14px;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    .segmented-control input {
+      display: none;
+    }
+
+    .segmented-control label {
+      flex: 1;
+      text-align: center;
+      padding: 8px 0;
+      cursor: pointer;
+      z-index: 2;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+      transition: color 0.3s ease;
+    }
+
+    .segmented-control .slider {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: calc(100% / 3 - 8px);
+      height: calc(100% - 8px);
+      background: white;
+      border-radius: 999px;
+      transition: left 0.3s ease;
+      z-index: 1;
+    }
+
+    #lang-python:checked ~ .slider { left: 4px; }
+    #lang-sql:checked ~ .slider { left: calc(33.333% + 4px); }
+    #lang-pyspark:checked ~ .slider { left: calc(66.666% + 4px); }
+
+    #lang-python:checked + label,
+    #lang-sql:checked + label,
+    #lang-pyspark:checked + label {
+      color: black;
+    }
+
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      width: 100%;
+    }
+
+    .messages {
+      max-height: 300px;
+      overflow-y: auto;
+      width: 100%;
+      margin-bottom: 14px;
+      padding: 0 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .message {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+      padding: 8px 12px;
+      margin: 8px 0;
+      border-radius: 14px;
+      max-width: 85%;
+      color: var(--text-color);
+    }
+
+    .message.bot { background: var(--message-bot-bg); align-self: flex-start; }
+    .message.user { background: var(--message-user-bg); align-self: flex-end; }
+
+    .bubble-text { line-height: 1.4; word-wrap: break-word; padding: 4px 0; }
+
+    .input-wrapper {
+      display: flex;
+      align-items: center;
+      background: #2c2c2c;
+      border-radius: 999px;
+      padding: 12px 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .input-wrapper input[type="text"] {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: white;
+      font-size: 15px;
+      font-family: 'Poppins', sans-serif;
+      padding: 8px;
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 16px;
+      padding: 6px;
+      margin-left: 8px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .icon-btn:hover { transform: scale(1.1); }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 10px;
+    }
+
+    .typing-indicator span {
+      width: 8px;
+      height: 8px;
+      background: var(--indicator-color);
+      border-radius: 50%;
+      animation: typingBounce 1.4s infinite ease-in-out;
+    }
+
+    @keyframes typingBounce {
+      0%, 80%, 100% { transform: scale(0.9); opacity: 0.5; }
+      40% { transform: scale(1.2); opacity: 1; }
+    }
+
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .code-editor-modal {
+  position: fixed;
+  background: #1e1e1e;
+  width: 90%;
+  max-width: 680px;
+  height: 420px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: none;
+  z-index: 1001;
+  flex-direction: column;
+  overflow: auto;           /* ✅ Required for resizing to work */
+  resize: both;             /* ✅ Enables dragging to resize */
+  transition: all 0.3s ease;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ✅ Add this right after */
+.code-editor-modal.dragging {
+  transition: none !important;
+  cursor: move;
+}
+
+.code-editor-modal.visible {
+  display: flex !important;
+}
+.code-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #2a2a2a;
+    padding: 12px 20px;
+    color: white;
+    font-weight: 600;
+    border-bottom: 1px solid #444;
+  }
+
+  .editor-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-left: auto;
+  }
+
+  .editor-actions button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 6px;
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  .editor-actions button:hover {
+    transform: scale(1.2);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+
+/* Maximize mode */
+.code-editor-modal.maximized {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  transform: none !important;
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 1002;
+}
+
+/* Minimize mode */
+.code-editor-modal.minimized {
+  height: 48px !important;
+  width: 280px !important;
+  transform: translate(-50%, -50%) !important;
+  overflow: hidden;
+}
+
+/* Hide textarea when minimized */
+.code-editor-modal.minimized textarea {
+  display: none;
+}
+
+#codeEditorArea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: #1e1e1e;
+  color: white;
+  border: none;
+  resize: none;
+  padding: 18px 20px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  border-radius: 0; /* Ensures it doesn't break outer modal shape */
+}
+
+@media screen and (max-width: 600px) {
+  .greeting {
+    font-size: 1.8rem;
+  }
+
+  .main-wrapper {
+    padding: 10px;
+    align-items: stretch;
+  }
+
+  .center-wrapper {
+    padding: 0 10px;
+  }
+
+  .input-wrapper {
+    padding: 10px 16px;
+    margin: 0 12px;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;               /* ✅ Prevents overflow */
+  }
+
+  .input-wrapper input[type="text"] {
+    font-size: 14px;
+    padding: 6px;
+    min-width: 0;                  /* ✅ Prevents input from stretching */
+  }
+
+  .icon-btn {
+    font-size: 14px;
+    margin-left: 6px;
+    padding: 6px 4px;              /* ✅ Controlled spacing for icons */
+  }
+
+  .icon-btn i {
+    font-size: 16px;
+  }
+
+  .messages {
+    max-height: 250px;
+    padding: 0 6px;
+  }
+
+  .message {
+    font-size: 14px;
+    padding: 6px 10px;
+    margin: 6px 0;
+  }
+
+  .sidebar {
+    width: 200px;
+    padding: 20px;
+  }
+
+  .sidebar h3 {
+    font-size: 18px;
+  }
+
+  .code-editor-modal {
+    width: 95%;
+    height: 55vh;
+  }
+
+  .theme-toggle, .hamburger {
+    font-size: 20px;
+    top: 12px;
+  }
+
+  /* ✅ Mobile-friendly toggle switches */
+  .switch {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    width: 170px;
+  }
+
+  .slider-round {
+    width: 50px;
+    height: 28px;
+  }
+
+  .slider-round::before {
+    width: 22px;
+    height: 22px;
+    left: 3px;
+    bottom: 3px;
+  }
+
+  .switch-icon {
+    height: 26px;
+    width: 26px;
+    object-fit: contain;
+  }
+
+  .mysql-icon {
+    height: 30px;
+  }
+
+  .toggle-switches {
+    top: 60px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <!-- ...existing buttons, sidebar, etc... -->
+  <button class="theme-toggle" id="theme-toggle" title="Toggle light & dark" aria-label="auto" aria-live="polite">
+    <svg class="sun-and-moon" aria-hidden="true" width="24" height="24" viewBox="0 0 24 24">
+      <mask class="moon" id="moon-mask">
+        <rect x="0" y="0" width="100%" height="100%" fill="white" />
+        <circle cx="24" cy="10" r="6" fill="black" />
+      </mask>
+      <circle class="sun" cx="12" cy="12" r="6" mask="url(#moon-mask)" fill="currentColor" />
+      <g class="sun-beams" stroke="currentColor">
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </g>
+    </svg>
+  </button>
+
+  <div class="toggle-switches">
+    <label class="switch">
+      <input type="checkbox" id="vscode-toggle">
+      <span class="slider-round"></span>
+      <img src="images/vscode.png" class="switch-icon" alt="VS Code Icon">
+    </label>
+  
+    <label class="switch">
+      <input type="checkbox" id="mysql-toggle">
+      <span class="slider-round"></span>
+      <img src="images/sql.png" class="switch-icon mysql-icon" alt="MySQL Icon">
+    </label>    
+  </div>
+  
+  
+  <div class="hamburger">☰</div>
+  
+  <div class="sidebar" id="sidebar">
+    <h3>Chat History</h3>
+    <div id="chatTabs"></div>
+  </div>
+
+  <div class="main-wrapper">
+    <div class="center-wrapper">
+      <h1 class="greeting">Welcome, Yash</h1>
+
+      <!-- 🔥 Language Toggle Switch Added -->
+      <div class="segmented-control">
+        <input type="radio" name="language" id="lang-python" value="Python" checked>
+        <label for="lang-python">Python</label>
+
+        <input type="radio" name="language" id="lang-sql" value="SQL">
+        <label for="lang-sql">SQL</label>
+
+        <input type="radio" name="language" id="lang-pyspark" value="PySpark">
+        <label for="lang-pyspark">PySpark</label>
+
+        <div class="slider"></div>
+      </div>
+
+      <!-- chat UI here -->
+      <div class="chat-container">
+        <div class="messages" id="messages"></div>
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="input-wrapper">
+          <input type="text" id="chatInput" placeholder="Ask follow-up..." onkeypress="handleKeyPress(event)" />
+          <label for="fileUpload" class="icon-btn"><i class="fa-solid fa-paperclip"></i></label>
+          <input type="file" id="fileUpload" style="display: none;" onchange="handleFileUpload(event)" />
+          <button class="icon-btn" onclick="toggleCodeEditor()"><i class="fa-solid fa-code"></i></button>
+          <button class="icon-btn" onclick="sendMessage()"><i class="fa-solid fa-arrow-up"></i></button>
+        </div>
+      </div>
+      
+
+  <!-- ...code editor and rest unchanged... -->
+  <div class="code-editor-modal" id="codeEditorModal">
+    <div class="code-editor-header">
+        <span>Code Editor</span>
+        <div class="editor-actions">
+          <button onclick="minimizeEditor()">−</button>
+          <button onclick="maximizeEditor()">☐</button>
+          <button onclick="toggleCodeEditor()">×</button>
+        </div>
+      </div>
+      
+
+
+    <textarea id="codeEditorArea" placeholder="Write your Python code here..."></textarea>
+  </div>
+  
+  <script>
+  const messagesDiv = document.getElementById('messages');
+  const typingIndicator = document.getElementById('typingIndicator');
+  const input = document.getElementById('chatInput');
+  const modal = document.getElementById('codeEditorModal');
+  const themeToggle = document.getElementById('theme-toggle');
+  const hamburger = document.querySelector('.hamburger');
+  let chatHistory = {};
+
+  themeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('light-theme');
+  });
+
+  hamburger.addEventListener('click', () => {
+    document.getElementById("sidebar").classList.toggle("open");
+  });
+
+  function getSelectedLang() {
+    const selected = document.querySelector('input[name="language"]:checked');
+    return selected ? selected.value : 'Python';
+  }
+
+  document.querySelectorAll('input[name="language"]').forEach(input => {
+    input.addEventListener('change', () => {
+      const lang = getSelectedLang();
+      const editor = document.getElementById("codeEditorArea");
+      if (editor) editor.placeholder = `Write your ${lang} code here...`;
+    });
+  });
+
+  function toggleCodeEditor() {
+    if (modal) {
+      modal.classList.toggle("visible");
+      modal.classList.remove("minimized");
+      modal.classList.remove("maximized");
+      const lang = getSelectedLang();
+      document.getElementById("codeEditorArea").placeholder = `Write your ${lang} code here...`;
+    }
+  }
+
+  function minimizeEditor() {
+    modal.classList.remove("maximized");
+    modal.classList.toggle("minimized");
+  }
+
+  function maximizeEditor() {
+    modal.classList.remove("minimized");
+    modal.classList.toggle("maximized");
+  }
+
+  function sendMessage() {
+    const msg = input.value.trim();
+    if (!msg) return;
+    addMessage(msg, false);
+    input.value = '';
+    typingIndicator.style.display = 'flex';
+    setTimeout(() => {
+      typingIndicator.style.display = 'none';
+      const response = getBotResponse(msg);
+      addMessage(response, true);
+      saveChatToHistory();
+    }, 1000);
+  }
+
+  function addMessage(text, isBot) {
+    const msgElem = document.createElement('div');
+    msgElem.className = 'message ' + (isBot ? 'bot' : 'user');
+    const textElem = document.createElement('div');
+    textElem.className = 'bubble-text';
+    textElem.textContent = text;
+    msgElem.appendChild(textElem);
+    messagesDiv.appendChild(msgElem);
+    messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: 'smooth' });
+  }
+
+  function getBotResponse(input) {
+    const lower = input.toLowerCase();
+    if (lower.includes("hello")) return "Hello! How can I help?";
+    if (lower.includes("file")) return "You can upload CSV, PDF, or images!";
+    return "This is a placeholder response.";
+  }
+
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const preview = e.target.result.slice(0, 300);
+      addMessage(`📎 Uploaded \"${file.name}\"\n\n${preview}...`, false);
+      saveChatToHistory();
+    };
+    reader.readAsText(file);
+  }
+
+  function handleKeyPress(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function saveChatToHistory() {
+    const id = "chat-" + Date.now();
+    chatHistory[id] = messagesDiv.innerHTML;
+    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+    renderChatTabs();
+  }
+
+  function renderChatTabs() {
+  const container = document.getElementById("chatTabs");
+  container.innerHTML = '';
+  const history = JSON.parse(localStorage.getItem("chatHistory")) || {};
+  chatHistory = history;
+
+  for (const id in history) {
+    const tabWrapper = document.createElement("div");
+    tabWrapper.className = "chat-tab-wrapper";
+
+    const tab = document.createElement("div");
+    tab.className = "chat-tab";
+    tab.textContent = new Date(+id.split('-')[1]).toLocaleString();
+    tab.onclick = () => {
+      messagesDiv.innerHTML = history[id];
+    };
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "chat-delete-btn";
+    deleteBtn.innerHTML = "⋮";
+    deleteBtn.onclick = (e) => {
+      e.stopPropagation(); // prevent tab click
+      delete history[id];
+      localStorage.setItem("chatHistory", JSON.stringify(history));
+      renderChatTabs();
+    };
+
+    tabWrapper.appendChild(tab);
+    tabWrapper.appendChild(deleteBtn);
+    container.appendChild(tabWrapper);
+  }
+}
+
+  renderChatTabs();
+  // DRAGGABLE MODAL CODE
+const modalHeader = document.querySelector(".code-editor-header");
+let isDragging = false;
+let offsetX = 0, offsetY = 0;
+
+modalHeader.addEventListener("mousedown", (e) => {
+  // Disable dragging in maximized state
+  if (modal.classList.contains("maximized")) return;
+
+  isDragging = true;
+  const rect = modal.getBoundingClientRect();
+  offsetX = e.clientX - rect.left;
+  offsetY = e.clientY - rect.top;
+  modal.classList.add("dragging");
+});
+
+document.addEventListener("mouseup", () => {
+  isDragging = false;
+  modal.classList.remove("dragging");
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  modal.style.top = `${e.clientY - offsetY}px`;
+  modal.style.left = `${e.clientX - offsetX}px`;
+  modal.style.transform = `none`; // cancel centering
+});
+</script>
